@@ -20,6 +20,7 @@ let finishBreakTimer
 let resumeBreaksTimer
 let settings
 let isPaused = false
+let danger = 0
 
 global.shared = {
   isNewVersion: false
@@ -102,7 +103,7 @@ function startMicrobreak () {
     return
   }
   globalShortcut.register('CommandOrControl+X', () => {
-    finishMicrobreak(false)
+    finishMicrobreak(false, 1)
   })
   const modalPath = path.join('file://', __dirname, 'microbreak.html')
   microbreakWin = new BrowserWindow({
@@ -121,6 +122,7 @@ function startMicrobreak () {
   microbreakWin.webContents.on('did-finish-load', () => {
     microbreakWin.webContents.send('microbreakIdea', microbreakIdeas.randomElement, settings.get('microbreakStrictMode'))
     microbreakWin.webContents.send('progress', Date.now(), settings.get('microbreakDuration'))
+    microbreakWin.webContents.send('danger', danger)
     microbreakWin.setAlwaysOnTop(true)
     microbreakWin.show()
     finishMicrobreakTimer = setTimeout(finishMicrobreak, settings.get('microbreakDuration'))
@@ -137,7 +139,7 @@ function startBreak () {
     return
   }
   globalShortcut.register('CommandOrControl+X', () => {
-    finishBreak(false)
+    finishBreak(false, 2)
   })
   const modalPath = path.join('file://', __dirname, 'break.html')
   breakWin = new BrowserWindow({
@@ -156,13 +158,20 @@ function startBreak () {
   breakWin.webContents.on('did-finish-load', () => {
     breakWin.webContents.send('breakIdea', breakIdeas.randomElement, settings.get('breakStrictMode'))
     breakWin.webContents.send('progress', Date.now(), settings.get('breakDuration'))
+    breakWin.webContents.send('danger', danger)
     breakWin.setAlwaysOnTop(true)
     breakWin.show()
     finishBreakTimer = setTimeout(finishBreak, settings.get('breakDuration'))
   })
 }
 
-function finishMicrobreak (shouldPlaySound = true) {
+function finishMicrobreak (shouldPlaySound = true, dangerIncrease = 0) {
+  if (dangerIncrease !== 0) {
+    danger += dangerIncrease
+  } else if (danger >= 1) {
+    danger -= 1
+  }
+  console.log(danger)
   globalShortcut.unregister('CommandOrControl+X')
   clearTimeout(finishMicrobreakTimer)
   if (shouldPlaySound) {
@@ -179,7 +188,13 @@ function finishMicrobreak (shouldPlaySound = true) {
   }
 }
 
-function finishBreak (shouldPlaySound = true) {
+function finishBreak (shouldPlaySound = true, dangerIncrease = 0) {
+  if (dangerIncrease !== 0) {
+    danger += dangerIncrease
+  } else if (danger >= 2) {
+    danger -= 2
+  }
+  console.log(danger)
   globalShortcut.unregister('CommandOrControl+X')
   clearTimeout(finishBreakTimer)
   if (shouldPlaySound) {
@@ -238,6 +253,7 @@ function pauseBreaks (seconds) {
     resumeBreaksTimer = setTimeout(resumeBreaks, seconds)
   }
   isPaused = true
+  danger = 0
   appIcon.setContextMenu(getTrayMenu())
 }
 
@@ -382,6 +398,7 @@ function getTrayMenu () {
     }, {
       label: 'Reset breaks',
       click: function () {
+        danger = 0
         breakPlanner.reset()
       }
     })
@@ -420,11 +437,11 @@ function getTrayMenu () {
 }
 
 ipcMain.on('finish-microbreak', function (event, shouldPlaySound) {
-  finishMicrobreak(shouldPlaySound)
+  finishMicrobreak(shouldPlaySound, 1)
 })
 
 ipcMain.on('finish-break', function (event, shouldPlaySound) {
-  finishBreak(shouldPlaySound)
+  finishBreak(shouldPlaySound, 2)
 })
 
 ipcMain.on('save-setting', function (event, key, value) {
